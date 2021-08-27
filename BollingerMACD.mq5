@@ -117,14 +117,14 @@ void OnTick()
           PositionsTotal() - RiskFreePosNo < MathAbs(MathRound(Total_Risk_Percent/Trade_Risk_Percent)) && 
           (AccountInfoDouble(ACCOUNT_BALANCE) - SumMaxLose) > (AccountInfoDouble(ACCOUNT_MARGIN) * MarginLevelRatio))
          {
-            if (dAsk < MidBuffer[0] + ((UpBuffer[0] - MidBuffer[0]) / 2) &&
+            if (//dAsk < UpBuffer[0] &&
                 ((iClose(_Symbol, _Period, 2) <= MidBuffer[2] && iClose(_Symbol, _Period, 1) > MidBuffer[1]) || (iClose(_Symbol, _Period, 2) <= LowBuffer[2] && iClose(_Symbol, _Period, 1) > LowBuffer[1]))  &&
                 iClose(_Symbol, _Period, 0) > iOpen(_Symbol, _Period, 0) &&
                 diMACDMainBuffer[0] > diMACDMainBuffer[1] && diMACDMainBuffer[1] > diMACDMainBuffer[2] && 
                 diMACDMainBuffer[0] > diMACDSignalBuffer[0] && diMACDMainBuffer[1] > diMACDSignalBuffer[1] && diMACDMainBuffer[2] > diMACDSignalBuffer[2])
                   Buy();
 
-            if (dBid > MidBuffer[0] - ((MidBuffer[0] - LowBuffer[0]) / 2) &&
+            if (//dBid > LowBuffer[0] &&
                 ((iClose(_Symbol, _Period, 2) >= MidBuffer[2] && iClose(_Symbol, _Period, 1) < MidBuffer[1]) || (iClose(_Symbol, _Period, 2) >= UpBuffer[2] && iClose(_Symbol, _Period, 1) < UpBuffer[1])) &&
                 iClose(_Symbol, _Period, 0) < iOpen(_Symbol, _Period, 0) &&
                 diMACDMainBuffer[0] < diMACDMainBuffer[1] && diMACDMainBuffer[1] < diMACDMainBuffer[2] && 
@@ -140,16 +140,10 @@ bool Buy()
       long   lSD  = SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
       double dAsk = SymbolInfoDouble(_Symbol, SYMBOL_ASK),
              dBid = SymbolInfoDouble(_Symbol, SYMBOL_BID),
-             dLotSize;
-      dLotSize = CalcLotSize((dAsk - LowBuffer[1]) * MathPow(10, lSD));
-      
-      if (dAsk > UpBuffer[0] - dSpread)
-         {
-            double dSL = MathMin(UpBuffer[1] - dSpread, iLow(_Symbol, _Period, 0));
-            return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_BUY, dLotSize, dAsk, dSL, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(dBid - dSL, (int)lSD))));
-         }            
-      else
-         return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_BUY, dLotSize, dAsk, LowBuffer[1]- dSpread, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(dBid - LowBuffer[1] + dSpread, (int)lSD))));
+             dLotSize,
+             dSL  = MathMin(LowBuffer[1]- dSpread, iLow(_Symbol, _Period, 1));
+      dLotSize = CalcLotSize((dAsk - dSL) * MathPow(10, lSD));
+      return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_BUY, dLotSize, dAsk, dSL, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(dBid - LowBuffer[1] + dSpread, (int)lSD))));
    }
 //+------------------------------------------------------------------+
 bool Sell()
@@ -157,15 +151,10 @@ bool Sell()
       long   lSD  = SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
       double dAsk = SymbolInfoDouble(_Symbol, SYMBOL_ASK),
              dBid = SymbolInfoDouble(_Symbol, SYMBOL_BID),
-             dLotSize;
-      dLotSize = CalcLotSize((UpBuffer[1] - dBid) * MathPow(10, lSD));
-      if (dBid < LowBuffer[0] + dSpread)
-         {
-            double dSL = MathMax(LowBuffer[1] + dSpread, iHigh(_Symbol, _Period, 0));
-            return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_BUY, dLotSize, dAsk, dSL, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(dSL - dBid , (int)lSD))));
-         }            
-      else   
-         return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_SELL, dLotSize, dBid, UpBuffer[1] + dSpread, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(UpBuffer[1] + dSpread - dAsk, (int)lSD))));
+             dLotSize,
+             dSL  = MathMax(UpBuffer[1] + dSpread, iHigh(_Symbol, _Period, 1));
+      dLotSize = CalcLotSize((dSL - dBid) * MathPow(10, lSD));
+      return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_SELL, dLotSize, dBid, dSL, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(UpBuffer[1] + dSpread - dAsk, (int)lSD))));
    }
 //+------------------------------------------------------------------+
 double CalcLotSize(const double iSL)
