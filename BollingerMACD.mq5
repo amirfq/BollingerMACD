@@ -117,15 +117,13 @@ void OnTick()
           PositionsTotal() - RiskFreePosNo < MathAbs(MathRound(Total_Risk_Percent/Trade_Risk_Percent)) && 
           (AccountInfoDouble(ACCOUNT_BALANCE) - SumMaxLose) > (AccountInfoDouble(ACCOUNT_MARGIN) * MarginLevelRatio))
          {
-            if (//dAsk < UpBuffer[0] &&
-                ((iClose(_Symbol, _Period, 2) <= MidBuffer[2] && iClose(_Symbol, _Period, 1) > MidBuffer[1]) || (iClose(_Symbol, _Period, 2) <= LowBuffer[2] && iClose(_Symbol, _Period, 1) > LowBuffer[1]))  &&
+            if (((iClose(_Symbol, _Period, 2) <= MidBuffer[2] && iClose(_Symbol, _Period, 1) > MidBuffer[1]) || (iClose(_Symbol, _Period, 2) <= LowBuffer[2] && iClose(_Symbol, _Period, 1) > LowBuffer[1]))  &&
                 iClose(_Symbol, _Period, 0) > iOpen(_Symbol, _Period, 0) &&
                 diMACDMainBuffer[0] > diMACDMainBuffer[1] && diMACDMainBuffer[1] > diMACDMainBuffer[2] && 
                 diMACDMainBuffer[0] > diMACDSignalBuffer[0] && diMACDMainBuffer[1] > diMACDSignalBuffer[1] && diMACDMainBuffer[2] > diMACDSignalBuffer[2])
                   Buy();
 
-            if (//dBid > LowBuffer[0] &&
-                ((iClose(_Symbol, _Period, 2) >= MidBuffer[2] && iClose(_Symbol, _Period, 1) < MidBuffer[1]) || (iClose(_Symbol, _Period, 2) >= UpBuffer[2] && iClose(_Symbol, _Period, 1) < UpBuffer[1])) &&
+            if (((iClose(_Symbol, _Period, 2) >= MidBuffer[2] && iClose(_Symbol, _Period, 1) < MidBuffer[1]) || (iClose(_Symbol, _Period, 2) >= UpBuffer[2] && iClose(_Symbol, _Period, 1) < UpBuffer[1])) &&
                 iClose(_Symbol, _Period, 0) < iOpen(_Symbol, _Period, 0) &&
                 diMACDMainBuffer[0] < diMACDMainBuffer[1] && diMACDMainBuffer[1] < diMACDMainBuffer[2] && 
                 diMACDMainBuffer[0] < diMACDSignalBuffer[0] && diMACDMainBuffer[1] < diMACDSignalBuffer[1] && diMACDMainBuffer[2] < diMACDSignalBuffer[2])
@@ -207,23 +205,9 @@ void SLTrailing()
             double dNewSL = dOrderSL;
             if (iOrderType == ORDER_TYPE_BUY)
                {
-                  if (iClose(_Symbol, _Period, 1) < MidBuffer[1] && MathMin(iLow(_Symbol, _Period, 1) - dSpread, iLow(_Symbol, _Period, 0) - dSpread) > dOrderSL)                     
-                     dNewSL = MathMin(iLow(_Symbol, _Period, 1) - dSpread, iLow(_Symbol, _Period, 0) - dSpread);
-                  else if (iHigh(_Symbol, _Period, 0) >= UpBuffer[0] - dSpread && dOrderOpenPrice + dSpread > dOrderSL)                     
-                     dNewSL = dOrderOpenPrice + dSpread;
-                  else if (iHigh(_Symbol, _Period, 0) >= UpBuffer[0] - dSpread && MidBuffer[0] - dSpread > dOrderSL)                     
-                     dNewSL = MidBuffer[0] - dSpread;
-                  else if ((dOrderSL <  dOrderOpenPrice && dBid - dOrderSL > StringToDouble(sSplitedComment[1])) ||
-                           (dOrderSL >= dOrderOpenPrice && dBid - dOrderSL > StringToDouble(sSplitedComment[1]) / 2))                  
-                     {
-                        if (dOrderSL < dOrderOpenPrice)
-                           dNewSL = dBid - StringToDouble(sSplitedComment[1]);
-                        else
-                           dNewSL = dBid - StringToDouble(sSplitedComment[1]) / 2;
-                     }      
-                  else if (LowBuffer[0] - dSpread > dOrderSL)
-                     dNewSL = LowBuffer[0] - dSpread;
-
+                  if(dOrderSL <= dOrderOpenPrice) dNewSL = dBid - dSpread;
+                  else dNewSL = dBid - StringToDouble(sSplitedComment[1]) / 4;
+ 
                   if (dNewSL > dOrderSL || dOrderSL == 0)
                      {
                         ctrade.PositionModify(ulTicket, dNewSL, dOrderProfit);
@@ -233,23 +217,9 @@ void SLTrailing()
 
             if (iOrderType == ORDER_TYPE_SELL)
                {
-                  if (iClose(_Symbol, _Period, 1) > MidBuffer[1] && MathMax(iHigh(_Symbol, _Period, 1) + dSpread, iHigh(_Symbol, _Period, 0) + dSpread) < dOrderSL)                     
-                     dNewSL = MathMax(iHigh(_Symbol, _Period, 1) + dSpread, iHigh(_Symbol, _Period, 0) + dSpread);
-                  else if (iLow(_Symbol, _Period, 0) <= LowBuffer[0] + dSpread && dOrderOpenPrice - dSpread < dOrderSL)                     
-                     dNewSL = dOrderOpenPrice - dSpread;
-                  else if (iLow(_Symbol, _Period, 0) <= LowBuffer[0] + dSpread && MidBuffer[0] + dSpread < dOrderSL)                     
-                     dNewSL = MidBuffer[0] + dSpread;
-                  else if ((dOrderSL >  dOrderOpenPrice && dOrderSL - dAsk > StringToDouble(sSplitedComment[1])) || 
-                           (dOrderSL <= dOrderOpenPrice && dOrderSL - dAsk > StringToDouble(sSplitedComment[1]) / 2))     
-                     {             
-                        if (dOrderSL > dOrderOpenPrice)
-                           dNewSL = dAsk + StringToDouble(sSplitedComment[1]);
-                        else
-                           dNewSL = dAsk + StringToDouble(sSplitedComment[1]) / 2;
-                     }
-                  else if (UpBuffer[0] + dSpread < dOrderSL)
-                     dNewSL = UpBuffer[0] + dSpread;
-                  
+                  if(dOrderSL >= dOrderOpenPrice) dNewSL = dAsk + dSpread;
+                  else dNewSL = dAsk + StringToDouble(sSplitedComment[1]) / 4;
+
                   if (dNewSL < dOrderSL || dOrderSL == 0)
                      {
                         ctrade.PositionModify(ulTicket, dNewSL, dOrderProfit);
