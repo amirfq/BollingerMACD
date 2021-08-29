@@ -19,7 +19,10 @@ input int    BB_Period     = 21,
              
              MACD_Fast_EMA = 12 ,  
              MACD_Slow_EMA = 26,  
-             MACD_Signal   = 9;
+             MACD_Signal   = 9,
+             
+             ATR_Period    = 21;
+             
 input ENUM_APPLIED_PRICE MACD_Applied_Price = PRICE_CLOSE,
                          BB_Applied_Price   = PRICE_CLOSE;
                          
@@ -202,11 +205,14 @@ void SLTrailing()
             dOrderOpenPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             dOrderSL        = PositionGetDouble(POSITION_SL);
 
-            double dNewSL = dOrderSL;
+            double dNewSL  = dOrderSL,
+                   dATRVal = iATR(_Symbol, _Period, ATR_Period);
+                   
             if (iOrderType == ORDER_TYPE_BUY)
                {
-                  if(dOrderSL <= dOrderOpenPrice) dNewSL = dBid - dSpread;
-                  else dNewSL = dBid - StringToDouble(sSplitedComment[1]) / 4;
+                  dNewSL = dBid - dATRVal;
+                  //if(dOrderSL <= dOrderOpenPrice) dNewSL = dBid - dATRVal;
+                  //else dNewSL = dBid - StringToDouble(sSplitedComment[1]) / 4;
  
                   if (dNewSL > dOrderSL || dOrderSL == 0)
                      {
@@ -217,8 +223,9 @@ void SLTrailing()
 
             if (iOrderType == ORDER_TYPE_SELL)
                {
-                  if(dOrderSL >= dOrderOpenPrice) dNewSL = dAsk + dSpread;
-                  else dNewSL = dAsk + StringToDouble(sSplitedComment[1]) / 4;
+                  dNewSL = dAsk + dATRVal;
+                  //if(dOrderSL >= dOrderOpenPrice) dNewSL = dAsk + dATRVal;
+                  //else dNewSL = dAsk + StringToDouble(sSplitedComment[1]) / 4;
 
                   if (dNewSL < dOrderSL || dOrderSL == 0)
                      {
