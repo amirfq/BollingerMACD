@@ -13,7 +13,6 @@ CTrade ctrade;
 
 input double Total_Risk_Percent = 30.0,
              Trade_Risk_Percent = 3.0,
-             ATRFactor          = 1.5,
              Auto_TP_Percent    = 0.01;
              
 input int    BB_Period     = 21,
@@ -135,19 +134,15 @@ void OnTick()
           (AccountInfoDouble(ACCOUNT_BALANCE) - SumMaxLose) > (AccountInfoDouble(ACCOUNT_MARGIN) * MarginLevelRatio))
          {
             if (((iClose(_Symbol, _Period, 2) <= MidBuffer[2] && iClose(_Symbol, _Period, 1) > MidBuffer[1]) || 
-                 (iClose(_Symbol, _Period, 2) <= LowBuffer[2] && iClose(_Symbol, _Period, 1) > LowBuffer[1]) ||
-                 (iClose(_Symbol, _Period, 1) > MidBuffer[1]  && dBid > iHigh(_Symbol, _Period, 1)))  &&
-                iClose(_Symbol, _Period, 0) > iOpen(_Symbol, _Period, 0) &&
-                diMACDMainBuffer[0] > diMACDMainBuffer[1] && diMACDMainBuffer[1] > diMACDMainBuffer[2] && 
-                diMACDMainBuffer[0] > diMACDSignalBuffer[0] && diMACDMainBuffer[1] > diMACDSignalBuffer[1] && diMACDMainBuffer[2] > diMACDSignalBuffer[2])
+                 (iHigh(_Symbol, _Period, 2) <= LowBuffer[2] && iClose(_Symbol, _Period, 1) > LowBuffer[1]))// ||
+                 /*(iClose(_Symbol, _Period, 1) > iOpen(_Symbol, _Period, 1)  && dBid > iClose(_Symbol, _Period, 1)))*/  &&
+                dAsk < MidBuffer[0] + ((UpBuffer[0] - MidBuffer[0]) / 2))
                   Buy();
 
             if (((iClose(_Symbol, _Period, 2) >= MidBuffer[2] && iClose(_Symbol, _Period, 1) < MidBuffer[1]) || 
-                 (iClose(_Symbol, _Period, 2) >= UpBuffer[2] && iClose(_Symbol, _Period, 1) < UpBuffer[1])   ||
-                 (iClose(_Symbol, _Period, 1) < MidBuffer[1] && dAsk < iLow(_Symbol, _Period, 1))) &&
-                iClose(_Symbol, _Period, 0) < iOpen(_Symbol, _Period, 0) &&
-                diMACDMainBuffer[0] < diMACDMainBuffer[1] && diMACDMainBuffer[1] < diMACDMainBuffer[2] && 
-                diMACDMainBuffer[0] < diMACDSignalBuffer[0] && diMACDMainBuffer[1] < diMACDSignalBuffer[1] && diMACDMainBuffer[2] < diMACDSignalBuffer[2])
+                 (iClose(_Symbol, _Period, 2) >= UpBuffer[2] && iClose(_Symbol, _Period, 1) < UpBuffer[1]))//   ||
+                 /*(iClose(_Symbol, _Period, 1) < iOpen(_Symbol, _Period, 1) && dAsk < iClose(_Symbol, _Period, 1)))*/ &&
+                dBid > MidBuffer[0] - ((MidBuffer[0] - LowBuffer[0]) / 2))
                   Sell();
          }
 
@@ -161,10 +156,7 @@ bool Buy()
       double dAsk = SymbolInfoDouble(_Symbol, SYMBOL_ASK),
              dBid = SymbolInfoDouble(_Symbol, SYMBOL_BID),
              dLotSize,
-             dSL  = MathMax(LowBuffer[1] - diATRBuffer[0], iLow(_Symbol, _Period, 1));
-
-      //if (dBid > MidBuffer[0])
-      //   dSL = MathMax(MidBuffer[1]- diATRBuffer[0], iLow(_Symbol, _Period, 1));
+             dSL  = MathMin(LowBuffer[1] - diATRBuffer[0], iLow(_Symbol, _Period, 1) - dSpread);
 
       dLotSize = CalcLotSize((dAsk - dSL) * MathPow(10, lSD));
       return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_BUY, dLotSize, dAsk, dSL, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(dBid - dSL, (int)lSD))));
@@ -176,10 +168,7 @@ bool Sell()
       double dAsk = SymbolInfoDouble(_Symbol, SYMBOL_ASK),
              dBid = SymbolInfoDouble(_Symbol, SYMBOL_BID),
              dLotSize,
-             dSL  = MathMin(UpBuffer[1] + diATRBuffer[0], iHigh(_Symbol, _Period, 1));
-
-      //if (dAsk < MidBuffer[0])
-      //   dSL = MathMin(MidBuffer[1] + diATRBuffer[0], iHigh(_Symbol, _Period, 1));
+             dSL  = MathMax(UpBuffer[1] + diATRBuffer[0], iHigh(_Symbol, _Period, 1) + dSpread);
 
       dLotSize = CalcLotSize((dSL - dBid) * MathPow(10, lSD));
       return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_SELL, dLotSize, dBid, dSL, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(dSL - dAsk, (int)lSD))));
@@ -235,12 +224,10 @@ void SLTrailing()
             double dNewSL  = dOrderSL;
             if (iOrderType == ORDER_TYPE_BUY)
                {
-                  if (dBid > MidBuffer[0] && dOrderSL < LowBuffer[1])
-                     dNewSL = MathMax(MidBuffer[1]- diATRBuffer[0], iLow(_Symbol, _Period, 1));
-                  else if(dOrderSL < dOrderOpenPrice && dBid > dOrderOpenPrice + dSpread * 1.5)      //Make it risk free as soon as possible
-                     dNewSL =  dOrderOpenPrice + dSpread * 0.2;
-                  else   
-                     dNewSL = MathMin(dBid - diATRBuffer[0] * ATRFactor, dBid - StringToDouble(sSplitedComment[1])); //Trailing SL
+                  if (dOrderSL < dOrderOpenPrice) 
+                     dNewSL = MathMin(dBid - diATRBuffer[0], dBid - StringToDouble(sSplitedComment[1])); //Trailing SL
+                  else
+                     dNewSL = MathMax(dBid - diATRBuffer[0], dBid - StringToDouble(sSplitedComment[1]));
                      
                   if (dNewSL > dOrderSL || dOrderSL == 0)
                      {
@@ -251,13 +238,11 @@ void SLTrailing()
 
             if (iOrderType == ORDER_TYPE_SELL)
                {
-                  if (dAsk < MidBuffer[0] && dOrderSL > UpBuffer[1])                            
-                     dNewSL = MathMin(MidBuffer[1] + diATRBuffer[0], iHigh(_Symbol, _Period, 1));
-                  else if(dOrderSL > dOrderOpenPrice && dAsk < dOrderOpenPrice - dSpread * 1.5) //Make it risk free as soon as possible
-                     dNewSL = dOrderOpenPrice - dSpread * 0.2;
-                  else
-                     dNewSL = MathMax(dAsk + diATRBuffer[0] * ATRFactor, dAsk + StringToDouble(sSplitedComment[1])); //Trailing SL
-                     
+                  if (dOrderSL > dOrderOpenPrice) 
+                     dNewSL = MathMax(dAsk + diATRBuffer[0], dAsk + StringToDouble(sSplitedComment[1])); //Trailing SL
+                  else   
+                     dNewSL = MathMin(dAsk + diATRBuffer[0], dAsk + StringToDouble(sSplitedComment[1])); 
+                  
                   if (dNewSL < dOrderSL || dOrderSL == 0)
                      {
                         ctrade.PositionModify(ulTicket, dNewSL, dOrderProfit);
@@ -272,13 +257,9 @@ void CheckClose()
    int    iIndex1,
           iOrdersCount = OrdersTotal();
    
-   long   iOrderType;
-          
    ulong  ulTicket;
           
    double dOrderProfit = 0.0,
-          dAsk         = 0.0,
-          dBid         = 0.0,
           SumProfit    = 0.0;
    
    for (iIndex1 = PositionsTotal() - 1; iIndex1 >= 0; iIndex1--)
@@ -286,37 +267,22 @@ void CheckClose()
       ulTicket = PositionGetTicket(iIndex1);
       if (ulTicket == 0) continue;
 
-      string sSplitedComment[2];
-      StringSplit(PositionGetString(POSITION_COMMENT), ';', sSplitedComment);
-
-      if (PositionGetSymbol(iIndex1) != _Symbol || sSplitedComment[0] != EnumToString((ENUM_TIMEFRAMES)_Period)) continue;
-      
       dOrderProfit = PositionGetDouble(POSITION_PROFIT);
-      iOrderType   = PositionGetInteger(POSITION_TYPE);
-      dAsk         = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-      dBid         = SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
       if (dOrderProfit > AccountInfoDouble(ACCOUNT_BALANCE) * Auto_TP_Percent)
          ctrade.PositionClose(ulTicket);
       else
-         SumProfit += dOrderProfit;   
+         SumProfit += dOrderProfit;    
    }
    
    if (SumProfit > AccountInfoDouble(ACCOUNT_BALANCE) * Auto_TP_Percent * 5)   
       {
-         for (iIndex1 = PositionsTotal() - 11; iIndex1 >= 0; iIndex1--)
+         for (iIndex1 = PositionsTotal() - 1; iIndex1 >= 0; iIndex1--)
          {
             ulTicket = PositionGetTicket(iIndex1);
             if (ulTicket == 0) continue;
-      
-            string sSplitedComment[2];
-            StringSplit(PositionGetString(POSITION_COMMENT), ';', sSplitedComment);
-      
-            if (PositionGetSymbol(iIndex1) != _Symbol || sSplitedComment[0] != EnumToString((ENUM_TIMEFRAMES)_Period)) continue;
-            
             ctrade.PositionClose(ulTicket);
          }
       }
-   
 }
 //+------------------------------------------------------------------+
