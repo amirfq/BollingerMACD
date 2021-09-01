@@ -13,6 +13,7 @@ CTrade ctrade;
 
 input double Total_Risk_Percent = 30.0,
              Trade_Risk_Percent = 3.0,
+             ATRFactor          = 2.0,
              Auto_TP_Percent    = 0.01;
              
 input int    BB_Period     = 21,
@@ -134,15 +135,23 @@ void OnTick()
           (AccountInfoDouble(ACCOUNT_BALANCE) - SumMaxLose) > (AccountInfoDouble(ACCOUNT_MARGIN) * MarginLevelRatio))
          {
             if (((iClose(_Symbol, _Period, 2) <= MidBuffer[2] && iClose(_Symbol, _Period, 1) > MidBuffer[1]) || 
-                 (iHigh(_Symbol, _Period, 2) <= LowBuffer[2] && iClose(_Symbol, _Period, 1) > LowBuffer[1]))// ||
-                 /*(iClose(_Symbol, _Period, 1) > iOpen(_Symbol, _Period, 1)  && dBid > iClose(_Symbol, _Period, 1)))*/  &&
-                dAsk < MidBuffer[0] + ((UpBuffer[0] - MidBuffer[0]) / 2))
+                 (iHigh(_Symbol, _Period, 2) <= LowBuffer[2] && iClose(_Symbol, _Period, 1) > LowBuffer[1])  ||
+                 (iClose(_Symbol, _Period, 1) > iOpen(_Symbol, _Period, 1) && dBid > iHigh(_Symbol, _Period, 1))) &&
+                MidBuffer[0] > MidBuffer[1] && MidBuffer[1] > MidBuffer[2] &&
+                dAsk < MidBuffer[0] + ((UpBuffer[0] - MidBuffer[0]) / 2) &&
+                diMACDMainBuffer[1] > 0 && diMACDMainBuffer[1] > 0)
+                //diMACDMainBuffer[0] > diMACDMainBuffer[1] && diMACDMainBuffer[1] > diMACDMainBuffer[2] && 
+                //diMACDMainBuffer[0] > diMACDSignalBuffer[0] && diMACDMainBuffer[1] > diMACDSignalBuffer[1] && diMACDMainBuffer[2] > diMACDSignalBuffer[2])
                   Buy();
 
             if (((iClose(_Symbol, _Period, 2) >= MidBuffer[2] && iClose(_Symbol, _Period, 1) < MidBuffer[1]) || 
-                 (iClose(_Symbol, _Period, 2) >= UpBuffer[2] && iClose(_Symbol, _Period, 1) < UpBuffer[1]))//   ||
-                 /*(iClose(_Symbol, _Period, 1) < iOpen(_Symbol, _Period, 1) && dAsk < iClose(_Symbol, _Period, 1)))*/ &&
-                dBid > MidBuffer[0] - ((MidBuffer[0] - LowBuffer[0]) / 2))
+                 (iClose(_Symbol, _Period, 2) >= UpBuffer[2] && iClose(_Symbol, _Period, 1) < UpBuffer[1])   ||
+                 (iClose(_Symbol, _Period, 1) < iOpen(_Symbol, _Period, 1) && dAsk < iLow(_Symbol, _Period, 1))) &&
+                MidBuffer[0] < MidBuffer[1] && MidBuffer[1] < MidBuffer[2] &&
+                dBid > MidBuffer[0] - ((MidBuffer[0] - LowBuffer[0]) / 2) &&
+                diMACDMainBuffer[1] < 0 && diMACDMainBuffer[1] < 0)
+                //diMACDMainBuffer[0] < diMACDMainBuffer[1] && diMACDMainBuffer[1] < diMACDMainBuffer[2] && 
+                //diMACDMainBuffer[0] < diMACDSignalBuffer[0] && diMACDMainBuffer[1] < diMACDSignalBuffer[1] && diMACDMainBuffer[2] < diMACDSignalBuffer[2])
                   Sell();
          }
 
@@ -156,7 +165,7 @@ bool Buy()
       double dAsk = SymbolInfoDouble(_Symbol, SYMBOL_ASK),
              dBid = SymbolInfoDouble(_Symbol, SYMBOL_BID),
              dLotSize,
-             dSL  = MathMin(LowBuffer[1] - diATRBuffer[0], iLow(_Symbol, _Period, 1) - dSpread);
+             dSL  = MathMin(LowBuffer[1] - dSpread, iLow(_Symbol, _Period, 1) - dSpread);
 
       dLotSize = CalcLotSize((dAsk - dSL) * MathPow(10, lSD));
       return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_BUY, dLotSize, dAsk, dSL, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(dBid - dSL, (int)lSD))));
@@ -168,7 +177,7 @@ bool Sell()
       double dAsk = SymbolInfoDouble(_Symbol, SYMBOL_ASK),
              dBid = SymbolInfoDouble(_Symbol, SYMBOL_BID),
              dLotSize,
-             dSL  = MathMax(UpBuffer[1] + diATRBuffer[0], iHigh(_Symbol, _Period, 1) + dSpread);
+             dSL  = MathMax(UpBuffer[1] + dSpread, iHigh(_Symbol, _Period, 1) + dSpread);
 
       dLotSize = CalcLotSize((dSL - dBid) * MathPow(10, lSD));
       return (ctrade.PositionOpen(_Symbol, ORDER_TYPE_SELL, dLotSize, dBid, dSL, 0, EnumToString(_Period) + ";" + DoubleToString(NormalizeDouble(dSL - dAsk, (int)lSD))));
@@ -224,10 +233,10 @@ void SLTrailing()
             double dNewSL  = dOrderSL;
             if (iOrderType == ORDER_TYPE_BUY)
                {
-                  if (dOrderSL < dOrderOpenPrice) 
-                     dNewSL = MathMin(dBid - diATRBuffer[0], dBid - StringToDouble(sSplitedComment[1])); //Trailing SL
+                  if (dOrderSL < dOrderOpenPrice + diATRBuffer[0]) 
+                     dNewSL = dBid - StringToDouble(sSplitedComment[1]) / 2; 
                   else
-                     dNewSL = MathMax(dBid - diATRBuffer[0], dBid - StringToDouble(sSplitedComment[1]));
+                     dNewSL = dBid - diATRBuffer[0];
                      
                   if (dNewSL > dOrderSL || dOrderSL == 0)
                      {
@@ -238,10 +247,10 @@ void SLTrailing()
 
             if (iOrderType == ORDER_TYPE_SELL)
                {
-                  if (dOrderSL > dOrderOpenPrice) 
-                     dNewSL = MathMax(dAsk + diATRBuffer[0], dAsk + StringToDouble(sSplitedComment[1])); //Trailing SL
+                  if (dOrderSL > dOrderOpenPrice - diATRBuffer[0]) 
+                     dNewSL = dAsk + StringToDouble(sSplitedComment[1]) / 2;
                   else   
-                     dNewSL = MathMin(dAsk + diATRBuffer[0], dAsk + StringToDouble(sSplitedComment[1])); 
+                     dNewSL = dAsk + diATRBuffer[0]; 
                   
                   if (dNewSL < dOrderSL || dOrderSL == 0)
                      {
